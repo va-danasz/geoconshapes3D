@@ -1,32 +1,56 @@
 from typing import Sequence
+from config import *
 import pyvista as pv
 import trimesh
+import os
 
-UP = (0.0, 0.0, 1.0)
+def render_shape(shape: trimesh.Trimesh, shape_name: str, c: str = BASE_COLOR_SINGLE):
+    if TEST_MODE:
+        plotter = pv.Plotter()
+    else:
+        plotter = pv.Plotter(off_screen=True)
 
-def render_shape(shape: trimesh.Trimesh, c: str ="blue"):
-    interactive_plotter = pv.Plotter()
-    interactive_plotter.camera_position = [
-        (40.0, -40.0, 40.0),
+    plotter.camera_position = [
+        BASE_CAMERA_XYZ,
         shape.centroid,
         UP
     ]
     pv_mesh = pv.wrap(shape)
-    interactive_plotter.add_mesh(pv_mesh, color=c)
-    interactive_plotter.add_axes()
-    interactive_plotter.show()
+    plotter.add_mesh(pv_mesh, color=c)
 
-def render_shapes(shapes: Sequence[trimesh.Trimesh], colors: Sequence[str]):
+    if TEST_MODE:
+        plotter.add_axes()
+        plotter.show()
+    else:
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        file_path = os.path.join(OUTPUT_DIR, f"alone_{shape_name.lower()}.png")
+        plotter.screenshot(file_path)
+    plotter.close()
+
+def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[str], colors: Sequence[str], concept: str):
     if colors is None:
-        colors = ["blue"]
-    interactive_plotter = pv.Plotter()
-    interactive_plotter.camera_position = [
-        (40.0, -40.0, 40.0),
-        (0.0, 0.0, 0.0),
+        colors = BASE_COLORS_GROUP
+
+    if TEST_MODE:
+        plotter = pv.Plotter()
+    else:
+        plotter = pv.Plotter(off_screen=True)
+
+    plotter.camera_position = [
+        BASE_CAMERA_XYZ,
+        BASE_CAMERA_LOOK,
         UP
     ]
     for i in range(len(shapes)):
         pv_mesh = pv.wrap(shapes[i])
-        interactive_plotter.add_mesh(pv_mesh, color=colors[i % len(colors)])
-    interactive_plotter.add_axes()
-    interactive_plotter.show()
+        plotter.add_mesh(pv_mesh, color=colors[i % len(colors)])
+
+    if TEST_MODE:
+        plotter.add_axes()
+        plotter.show()
+    else:
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        shapes_concat = "_".join([s.lower() for s in shape_names])
+        file_path = os.path.join(OUTPUT_DIR, f"{concept.lower()}_{shapes_concat}.png")
+        plotter.screenshot(file_path)
+    plotter.close()
