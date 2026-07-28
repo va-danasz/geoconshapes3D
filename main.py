@@ -1,48 +1,50 @@
 import random
-from config import *
-from core import mesh, scene
+from typing import Sequence
+import config
+from core import mesh, scene, validator
 
-def get_mesh(shape: str):
-    match shape:
-        case "CUBE":
-            mesh_generate = mesh.generate_cube()
-        case "SPHERE":
-            mesh_generate = mesh.generate_sphere(radius=5, pos=(10, 10, 20))
-        case "CONE":
-            mesh_generate = mesh.generate_cone(radius=5, height=8, pos=(-10, -15, -5))
-        case _:
-            raise ValueError(f"Unknown shape: {shape}")
-    return mesh_generate
+def generate_group(shapes: Sequence[str], conc: str):
+    for i in range(config.SAMPLE_COUNT):
+        valid = False
+        validation_count = 0
+        current_meshes = []
 
-def generate_group(shape1: str, shape2: str, conc: str):
-    mesh1 = get_mesh(shape1)
-    mesh2 = get_mesh(shape2)
+        while not valid and validation_count < config.MAX_VALIDATIONS:
+            current_meshes = []
+            validation_count += 1
+            for j in range(len(shapes)):
+                current_meshes.append(mesh.get_mesh(shapes[j]))
+            valid = validator.validate(current_meshes, conc)
 
-    for i in range(SAMPLE_COUNT):
-        scene.render_shapes([mesh1, mesh2], [shape1, shape2], gen_color_list(len(SHAPES)), conc)
+        if valid:
+            scene.render_shapes(current_meshes, shapes, gen_color_list(len(config.SHAPES)), conc, i)
+        else:
+            print(f"Unable to generate group with concept {conc}")
 
 def generate_single(shape: str):
-    mesh_single = get_mesh(shape)
-    for i in range(SAMPLE_COUNT):
-        scene.render_shape(mesh_single, shape, random.choice(COLORS))
+    mesh_single = mesh.get_mesh(shape, fixed=True)
+    for i in range(config.SAMPLE_COUNT):
+        scene.render_shape(mesh_single, shape, random.choice(config.COLORS), i)
 
-def gen_color_list(shapes_count: int):
+def gen_color_list(shapes_count: int) -> Sequence[str]:
     gen_colors = []
-    if shapes_count <= len(COLORS):
+    if shapes_count <= len(config.COLORS):
         for i in range(shapes_count):
-            c = random.choice(COLORS)
+            c = random.choice(config.COLORS)
             while c in gen_colors:
-                c = random.choice(COLORS)
+                c = random.choice(config.COLORS)
             gen_colors.append(c)
     else:
         for i in range(shapes_count):
-            gen_colors.append(random.choice(COLORS))
+            gen_colors.append(random.choice(config.COLORS))
     return gen_colors
 
-for concept in CONCEPTS:
-    for shape1_IDX in range(len(SHAPES)):
+
+random.seed(config.SEED)
+for concept in config.CONCEPTS:
+    for shape1_IDX in range(len(config.SHAPES)):
         if concept != "ALONE":
-            for shape2_IDX in range(shape1_IDX, len(SHAPES)):
-                generate_group(SHAPES[shape1_IDX], SHAPES[shape2_IDX], concept)
+            for shape2_IDX in range(shape1_IDX, len(config.SHAPES)):
+                generate_group([config.SHAPES[shape1_IDX], config.SHAPES[shape2_IDX]], concept)
         else:
-            generate_single(SHAPES[shape1_IDX])
+            generate_single(config.SHAPES[shape1_IDX])

@@ -1,10 +1,10 @@
 # Reproducibility Settings
-seed = 12345
+SEED = 12345
 
 # Image & Generation Settings
-IMG_W = 500
-IMG_H = 500
-SAMPLE_COUNT = 1
+IMG_W, IMG_H = 500, 500
+SAMPLE_COUNT = 3
+MAX_VALIDATIONS = 1000
 
 # In test mode the program opens an interactive window
 TEST_MODE = False
@@ -26,17 +26,18 @@ BASE_CAMERA_LOOK = (0.0, 0.0, 0.0)
 
 # Base Geometry Default Parameters
 BASE_SHAPE_POS = (0.0, 0.0, 0.0)
-BASE_CUBE_SIZE = (10, 10, 10)
-BASE_RADIUS = 10  # cone + sphere
 BASE_SUBDIVISIONS = 5  # sphere
-BASE_CONE_HEIGHT = 10
 BASE_CONE_SECTIONS = 4
 
 # Random Sampling Position Ranges
-POS_RANGE_X = (-30.0, 30.0)
-POS_RANGE_Y = (-30.0, 30.0)
-POS_RANGE_Z = (-10.0, 10.0)
+POS_X_RANGE = (-15.0, 15.0)
+POS_Y_RANGE = (-15.0, 15.0)
+POS_Z_RANGE = (-5.0, 5.0)
+CUBE_SIZE_RANGE = (7.5, 12.5)
+SPHERE_SIZE_RANGE = (4.0, 8.0)
+CONE_SIZE_RANGE = (4.0, 8.0)
+CONE_HEIGHT_RANGE = (8.0, 12.0)
 
 # Spatial Relationship Thresholds
-CLOSE_THRESHOLD = 15.0
-FAR_THRESHOLD = 35.0
+CLOSE_THRESHOLD = 5.0
+FAR_THRESHOLD = 10.0
