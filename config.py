@@ -8,7 +8,6 @@ MAX_VALIDATIONS = 1000
 
 # In test mode the program opens an interactive window
 TEST_MODE = False
-OUTPUT_DIR = "output"
 
 # Dataset Labeling & Category Options
 CONCEPTS = ["ALONE", "FAR", "CLOSE", "OVERLAP"]
@@ -21,8 +20,9 @@ BASE_COLORS_GROUP = [COLORS[1], COLORS[2]]
 
 # 3D Scene & Camera Configurations
 UP = (0.0, 0.0, 1.0)
-BASE_CAMERA_XYZ = (40.0, -40.0, 40.0)
-BASE_CAMERA_LOOK = (0.0, 0.0, 0.0)
+HORIZONTAL_ANGLE_RANGE = (0.0, 360.0)
+ELEVATION_ANGLE_RANGE = (15.0, 60.0)
+VIEW_ANGLE = 30.0
 
 # Base Geometry Default Parameters
 BASE_SHAPE_POS = (0.0, 0.0, 0.0)
@@ -39,5 +39,5 @@ CONE_SIZE_RANGE = (4.0, 8.0)
 CONE_HEIGHT_RANGE = (8.0, 12.0)
 
 # Spatial Relationship Thresholds
-CLOSE_THRESHOLD = 5.0
-FAR_THRESHOLD = 10.0
+CLOSE_THRESHOLD = (1.0, 6.0)
+FAR_THRESHOLD = (15.0, 30.0)

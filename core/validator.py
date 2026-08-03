@@ -21,25 +21,25 @@ def get_overlap_depth(mesh1: trimesh.Trimesh, mesh2: trimesh.Trimesh) -> float:
     return max_depth
 
 def validate_overlap(current_meshes: Sequence[trimesh.Trimesh]) -> bool:
-    overlap_depth = 0
+    depths = []
     for mesh1 in range(len(current_meshes)):
         for mesh2 in range(mesh1 + 1, len(current_meshes)):
-            overlap_depth = get_overlap_depth(current_meshes[mesh1], current_meshes[mesh2])
-    return overlap_depth > 1.0
+            depths.append(get_overlap_depth(current_meshes[mesh1], current_meshes[mesh2]))
+    return any(d > 1.0 for d in depths)
 
 def validate_close(current_meshes: Sequence[trimesh.Trimesh]) -> bool:
-    distance = 0
+    distances = []
     for mesh1 in range(len(current_meshes)):
         for mesh2 in range(mesh1 + 1, len(current_meshes)):
-            distance = get_min_distance(current_meshes[mesh1], current_meshes[mesh2])
-    return 0 < distance < config.CLOSE_THRESHOLD
+            distances.append(get_min_distance(current_meshes[mesh1], current_meshes[mesh2]))
+    return all(config.CLOSE_THRESHOLD[0] <= d <= config.CLOSE_THRESHOLD[1] for d in distances)
 
 def validate_far(current_meshes: Sequence[trimesh.Trimesh]) -> bool:
-    distance = 0
+    distances = []
     for mesh1 in range(len(current_meshes)):
         for mesh2 in range(mesh1 + 1, len(current_meshes)):
-            distance = get_min_distance(current_meshes[mesh1], current_meshes[mesh2])
-    return distance >= config.FAR_THRESHOLD
+            distances.append(get_min_distance(current_meshes[mesh1], current_meshes[mesh2]))
+    return all(config.FAR_THRESHOLD[0] <= d <= config.FAR_THRESHOLD[1] for d in distances)
 
 
 def validate(current_meshes: Sequence[trimesh.Trimesh], concept: str) -> bool:
