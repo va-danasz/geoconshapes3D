@@ -1,7 +1,9 @@
 import random
+import shutil
 from typing import Sequence
 import config
 from core import mesh, scene, validator
+import os
 
 def generate_group(shapes: Sequence[str], conc: str):
     for i in range(config.SAMPLE_COUNT):
@@ -17,13 +19,13 @@ def generate_group(shapes: Sequence[str], conc: str):
             valid = validator.validate(current_meshes, conc)
 
         if valid:
-            scene.render_shapes(current_meshes, shapes, gen_color_list(len(config.SHAPES)), conc, i)
+            scene.render_shapes(current_meshes, shapes, gen_color_list(len(shapes)), conc, i)
         else:
             print(f"Unable to generate group with concept {conc}")
 
 def generate_single(shape: str):
-    mesh_single = mesh.get_mesh(shape, fixed=True)
     for i in range(config.SAMPLE_COUNT):
+        mesh_single = mesh.get_mesh(shape)
         scene.render_shape(mesh_single, shape, random.choice(config.COLORS), i)
 
 def gen_color_list(shapes_count: int) -> Sequence[str]:
@@ -40,6 +42,8 @@ def gen_color_list(shapes_count: int) -> Sequence[str]:
     return gen_colors
 
 
+if os.path.exists(config.OUTPUT_PATH):
+    shutil.rmtree(config.OUTPUT_PATH)
 random.seed(config.SEED)
 for concept in config.CONCEPTS:
     for shape1_IDX in range(len(config.SHAPES)):
