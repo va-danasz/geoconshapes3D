@@ -3,12 +3,16 @@ SEED = 12345
 
 # Image & Generation Settings
 IMG_W, IMG_H = 800, 450
-SAMPLE_COUNT = 5
+SAMPLE_COUNT = 3
 MAX_VALIDATIONS = 1000
 
 # In test mode the program opens an interactive window
 TEST_MODE = False
+RENDER_BACKGROUND = True
+RENDER_TEXTURE = True
 OUTPUT_PATH = "output"
+BACKGROUND_PATH = "backgrounds"
+TEXTURE_PATH = "textures"
 CSV_PATH = f"{OUTPUT_PATH}/meta_data.csv"
 
 # Dataset Labeling & Category Options
