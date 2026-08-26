@@ -13,7 +13,8 @@ RENDER_TEXTURE = True
 OUTPUT_PATH = "output"
 BACKGROUND_PATH = "backgrounds"
 TEXTURE_PATH = "textures"
-CSV_PATH = f"{OUTPUT_PATH}/meta_data.csv"
+CSV_PATH_MESH = f"{OUTPUT_PATH}/meta_data_mesh.csv"
+CSV_PATH_RENDER = f"{OUTPUT_PATH}/meta_data_render.csv"
 
 # Dataset Labeling & Category Options
 CONCEPTS = ["ALONE", "FAR", "CLOSE", "OVERLAP"]

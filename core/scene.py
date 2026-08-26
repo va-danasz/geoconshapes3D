@@ -8,13 +8,14 @@ import trimesh.visual.texture
 import os
 import csv
 
-header_names = [
-        "image_name", "img_width", "img_height", "concept",
-        "object_id", "object_name", "object_pos_x", "object_pos_y", "object_pos_z",
-        "width", "length", "height", "radius", "cone_sides", "bbox_size_x", "bbox_size_y", "bbox_size_z",
-        "color", "texture_name", "background_name",
-        "cam_pos_x", "cam_pos_y", "cam_pos_z",
-        "view_angle", "target_x", "target_y", "target_z"
+header_names_mesh = [
+        "id", "concept", "object_id", "object_name", "object_pos_x", "object_pos_y", "object_pos_z",
+        "width", "length", "height", "radius", "cone_sides", "bbox_size_x", "bbox_size_y", "bbox_size_z"
+]
+
+header_names_render = [
+        "mesh_id", "image_name", "img_width", "img_height", "object_id", "color", "texture_name", "background_name",
+        "cam_pos_x", "cam_pos_y", "cam_pos_z", "view_angle", "target_x", "target_y", "target_z", "concept_2d"
 ]
 
 def get_random_file(folder_path: str) -> str | None:
@@ -37,39 +38,62 @@ def camera_angle() -> tuple[float, float, float]:
     dz = math.sin(elevation)
     return dx, dy, dz
 
-def extract_object_data(shape: trimesh.Trimesh, shape_name: str, shape_id: int, file_name: str,
-                        concept: str, color: str | None, plotter: pv.Plotter, bg_path: str, texture_path: str) -> dict:
+def extract_object_mesh(shape: trimesh.Trimesh, shape_name: str, shape_id: int, concept: str) -> dict:
+    if shape_id == 0:
+        extract_object_mesh.counter += 1
+    extents = shape.extents
+    centroid = shape.centroid
+
+    if extents is None or centroid is None:
+        raise ValueError("Cannot extract mesh data: shape is empty.")
+
     w, l, h, radius, cone_sides = None, None, None, None, None
     name = shape_name.lower()
 
     if name == "cube":
-        w, l, h = shape.extents
+        w, l, h = extents
     elif name == "cone":
-        h = shape.extents[2]
-        radius = shape.extents[0] / 2.0
+        h = extents[2]
+        radius = extents[0] / 2.0
         cone_sides = int(config.BASE_CONE_SECTIONS)
     elif name == "sphere":
-        radius = shape.extents[0] / 2.0
+        radius = extents[0] / 2.0
 
     return {
-        "image_name": file_name, "img_width": config.IMG_W, "img_height": config.IMG_H,
-        "concept": concept, "object_id": shape_id, "object_name": shape_name,
-        "object_pos_x": shape.centroid[0], "object_pos_y": shape.centroid[1], "object_pos_z": shape.centroid[2],
+        "id": extract_object_mesh.counter, "concept": concept, "object_id": shape_id, "object_name": name,
+        "object_pos_x": centroid[0], "object_pos_y": centroid[1], "object_pos_z": centroid[2],
         "width": w, "length": l, "height": h, "radius": radius, "cone_sides": cone_sides,
-        "bbox_size_x": shape.extents[0], "bbox_size_y": shape.extents[1], "bbox_size_z": shape.extents[2],
+        "bbox_size_x": extents[0], "bbox_size_y": extents[1], "bbox_size_z": extents[2]
+    }
+
+def extract_object_render(shape_id: int, file_name: str, color: str|None,
+                          plotter: pv.Plotter, bg_path: str|None, texture_path: str|None) -> dict:
+    return {
+        "mesh_id": extract_object_mesh.counter, "image_name": file_name, "img_width": config.IMG_W, "img_height": config.IMG_H, "object_id": shape_id,
         "color": color, "texture_name": texture_path, "background_name": bg_path,
         "cam_pos_x": plotter.camera.position[0], "cam_pos_y": plotter.camera.position[1], "cam_pos_z": plotter.camera.position[2],
         "view_angle": config.VIEW_ANGLE,
         "target_x": plotter.camera.focal_point[0], "target_y": plotter.camera.focal_point[1], "target_z": plotter.camera.focal_point[2],
+        "concept_2d": None
     }
 
-def save_meta_data(data: dict):
-    file_exists = os.path.exists(config.CSV_PATH)
-    with open(config.CSV_PATH, mode="a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=header_names)
+extract_object_mesh.counter = 0
+
+def save_meta_data(data_mesh: dict, data_render: dict) -> None:
+    file_exists = os.path.exists(config.CSV_PATH_MESH)
+    with open(config.CSV_PATH_MESH, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=header_names_mesh)
         if not file_exists:
             writer.writeheader()
-        writer.writerow(data)
+        writer.writerow(data_mesh)
+
+    file_exists = os.path.exists(config.CSV_PATH_RENDER)
+    with open(config.CSV_PATH_RENDER, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=header_names_render)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(data_render)
+    f.close()
 
 def render_shape(shape: trimesh.Trimesh, shape_name: str, c: str = config.BASE_COLOR_SINGLE, index: int = 0):
     if config.TEST_MODE:
@@ -94,13 +118,16 @@ def render_shape(shape: trimesh.Trimesh, shape_name: str, c: str = config.BASE_C
                     z_length=shape.extents[2],
                     clean=False
                 )
+
                 t_coords = pv_mesh.active_texture_coordinates
-                t_min, t_max = t_coords.min(), t_coords.max()
-                pv_mesh.active_texture_coordinates = (t_coords - t_min) / (t_max - t_min)
+                if t_coords:
+                    t_min, t_max = float(t_coords.min()), float(t_coords.max())
+                    pv_mesh.active_texture_coordinates = (t_coords - t_min) / (t_max - t_min)
             else:
                 pv_mesh = pv.wrap(shape).texture_map_to_plane()
             plotter.add_mesh(pv_mesh, texture=texture_img)
     if not config.RENDER_TEXTURE or texture == "":
+        pv_mesh = pv.wrap(shape)
         plotter.add_mesh(pv_mesh, color=c)
 
     target = shape.centroid
@@ -126,9 +153,9 @@ def render_shape(shape: trimesh.Trimesh, shape_name: str, c: str = config.BASE_C
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         plotter.screenshot(file_path)
 
-
-        data = extract_object_data(shape, shape_name, 0, file_name, "ALONE", c, plotter, background, texture)
-        save_meta_data(data)
+        data_mesh = extract_object_mesh(shape, shape_name, 0, "ALONE")
+        data_render = extract_object_render(0, file_name, c, plotter, background, texture)
+        save_meta_data(data_mesh, data_render)
     plotter.close()
 
 def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[str], colors: list[str], concept: str, index: int = 0):
@@ -159,8 +186,9 @@ def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[str],
                         clean=False
                     )
                     t_coords = pv_mesh.active_texture_coordinates
-                    t_min, t_max = t_coords.min(), t_coords.max()
-                    pv_mesh.active_texture_coordinates = (t_coords - t_min) / (t_max - t_min)
+                    if t_coords:
+                        t_min, t_max = float(t_coords.min()), float(t_coords.max())
+                        pv_mesh.active_texture_coordinates = (t_coords - t_min) / (t_max - t_min)
                 else:
                     pv_mesh = pv_mesh.texture_map_to_plane()
                 plotter.add_mesh(pv_mesh, texture=texture_img)
@@ -193,6 +221,7 @@ def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[str],
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         plotter.screenshot(file_path)
         for i in range(len(shapes)):
-            data = extract_object_data(shapes[i], shape_names[i], i, file_name, concept, colors[i], plotter, background, textures[i])
-            save_meta_data(data)
+            data_mesh = extract_object_mesh(shapes[i], shape_names[i], i, concept)
+            data_render = extract_object_render(i, file_name, colors[i], plotter, background, textures[i])
+            save_meta_data(data_mesh, data_render)
     plotter.close()
