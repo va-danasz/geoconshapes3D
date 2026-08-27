@@ -4,12 +4,13 @@ SEED = 12345
 # Image & Generation Settings
 IMG_W, IMG_H = 800, 450
 SAMPLE_COUNT = 3
+RENDER_COUNT = 5
 MAX_VALIDATIONS = 1000
 
 # In test mode the program opens an interactive window
 TEST_MODE = False
-RENDER_BACKGROUND = True
-RENDER_TEXTURE = True
+RENDER_BACKGROUND = False
+RENDER_TEXTURE = False
 OUTPUT_PATH = "output"
 BACKGROUND_PATH = "backgrounds"
 TEXTURE_PATH = "textures"
