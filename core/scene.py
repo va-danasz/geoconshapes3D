@@ -1,25 +1,19 @@
 import math
 import random
-from typing import Sequence
-import config
 import pyvista as pv
 import trimesh
 import trimesh.visual.texture
 import os
 import csv
+import numpy as np
+from typing import Sequence, cast
+import config
 import core.classifier as classifier
+from core.labels import Shape, Concept, Color
+from core.schema import MeshMetaData, RenderMetaData
 
-header_names_mesh = [
-        "id", "concept", "img_width", "img_height", "object_id", "object_name",
-        "object_pos_x", "object_pos_y", "object_pos_z",
-        "width", "length", "height", "radius", "cone_sides", "bbox_size_x", "bbox_size_y", "bbox_size_z",
-        "color", "texture_name", "background_name"
-]
-
-header_names_render = [
-        "mesh_id", "image_name", "object_id", "cam_pos_x", "cam_pos_y", "cam_pos_z",
-        "view_angle", "target_x", "target_y", "target_z", "concept_2d", "dist_norm"
-]
+header_names_mesh = list(MeshMetaData.__annotations__.keys())
+header_names_render = list(RenderMetaData.__annotations__.keys())
 
 def get_random_file(folder_path: str) -> str | None:
     valid_extensions = (".png", ".jpg", ".jpeg")
@@ -41,36 +35,35 @@ def camera_angle() -> tuple[float, float, float]:
     dz = math.sin(elevation)
     return dx, dy, dz
 
-def extract_object_mesh(shape: trimesh.Trimesh, shape_name: str, shape_id: int, concept: str, color: str|None,
-                        bg_path: str|None, texture_path: str|None, mesh_id: int) -> dict:
-    extents = shape.extents
+def extract_object_mesh(shape: trimesh.Trimesh, shape_name: Shape, shape_id: int, concept: Concept, color: Color|None,
+                        bg_path: str|None, texture_path: str|None, mesh_id: int) -> MeshMetaData:
+    extents = np.asarray(shape.extents)
     centroid = shape.centroid
 
     if extents is None or centroid is None:
         raise ValueError("Cannot extract mesh data: shape is empty.")
 
     w, l, h, radius, cone_sides = None, None, None, None, None
-    name = shape_name.lower()
 
-    if name == "cube":
+    if shape_name == Shape.CUBE:
         w, l, h = extents
-    elif name == "cone":
+    elif shape_name == Shape.CONE:
         h = extents[2]
         radius = extents[0] / 2.0
         cone_sides = int(config.BASE_CONE_SECTIONS)
-    elif name == "sphere":
+    elif shape_name == Shape.SPHERE:
         radius = extents[0] / 2.0
 
     return {
         "id": f"{mesh_id:03d}", "concept": concept, "img_width": config.IMG_W, "img_height": config.IMG_H,
-        "object_id": shape_id, "object_name": name,
+        "object_id": shape_id, "object_name": shape_name.lower(),
         "object_pos_x": centroid[0], "object_pos_y": centroid[1], "object_pos_z": centroid[2],
         "width": w, "length": l, "height": h, "radius": radius, "cone_sides": cone_sides,
         "bbox_size_x": extents[0], "bbox_size_y": extents[1], "bbox_size_z": extents[2],
         "color": color, "texture_name": texture_path, "background_name": bg_path
     }
 
-def extract_object_render(shape_id: int, file_name: str, plotter: pv.Plotter, mesh_id: int, concept_2d: str, dist_norm: float|None) -> dict:
+def extract_object_render(shape_id: int, file_name: str, plotter: pv.Plotter, mesh_id: int, concept_2d: Concept, dist_norm: float|None) -> RenderMetaData:
     return {
         "mesh_id": f"{mesh_id:03d}", "image_name": file_name, "object_id": shape_id,
         "cam_pos_x": plotter.camera.position[0], "cam_pos_y": plotter.camera.position[1], "cam_pos_z": plotter.camera.position[2],
@@ -80,26 +73,25 @@ def extract_object_render(shape_id: int, file_name: str, plotter: pv.Plotter, me
     }
 extract_object_mesh.counter = 0
 
-def save_meta_data(data: dict, write_mesh: bool) -> None:
-    if write_mesh:
-        file_exists = os.path.exists(config.CSV_PATH_MESH)
-        with open(config.CSV_PATH_MESH, mode="a", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=header_names_mesh)
-            if not file_exists:
-                writer.writeheader()
-            writer.writerow(data)
-        f.close()
+def save_render_meta_data(data: RenderMetaData) -> None:
+    file_exists = os.path.exists(config.CSV_PATH_RENDER)
+    with open(config.CSV_PATH_RENDER, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter[str](f, fieldnames=header_names_render)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(dict(data))
+    f.close()
 
-    else:
-        file_exists = os.path.exists(config.CSV_PATH_RENDER)
-        with open(config.CSV_PATH_RENDER, mode="a", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=header_names_render)
-            if not file_exists:
-                writer.writeheader()
-            writer.writerow(data)
-        f.close()
+def save_mesh_meta_data(data: MeshMetaData) -> None:
+    file_exists = os.path.exists(config.CSV_PATH_MESH)
+    with open(config.CSV_PATH_MESH, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter[str](f, fieldnames=header_names_mesh)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(dict(data))
+    f.close()
 
-def render_shape(shape: trimesh.Trimesh, shape_name: str, c: str = config.BASE_COLOR_SINGLE, index: int = 0):
+def render_shape(shape: trimesh.Trimesh, shape_name: Shape, shape_color: Color|None, index: int = 0):
     if config.TEST_MODE:
         plotter = pv.Plotter(window_size=[config.IMG_W, config.IMG_H])
     else:
@@ -110,13 +102,13 @@ def render_shape(shape: trimesh.Trimesh, shape_name: str, c: str = config.BASE_C
         texture_path = get_random_file(config.TEXTURE_PATH)
         if texture_path:
             texture = texture_path.removeprefix(config.TEXTURE_PATH+"/")
-            c = ""
+            shape_color = None
             texture_img = pv.read_texture(texture_path)
-            if shape_name.lower() == "sphere":
+            if shape_name == Shape.SPHERE:
                 pv_mesh = pv.wrap(shape).texture_map_to_sphere()
-            elif shape_name.lower() == "cube":
+            elif shape_name == Shape.CUBE:
                 pv_mesh = pv.Cube(
-                    center=shape.centroid,
+                    center=np.asarray(shape.centroid),
                     x_length=shape.extents[0],
                     y_length=shape.extents[1],
                     z_length=shape.extents[2],
@@ -132,7 +124,7 @@ def render_shape(shape: trimesh.Trimesh, shape_name: str, c: str = config.BASE_C
             plotter.add_mesh(pv_mesh, texture=texture_img)
     if not config.RENDER_TEXTURE or texture == "":
         pv_mesh = pv.wrap(shape)
-        plotter.add_mesh(pv_mesh, color=c)
+        plotter.add_mesh(pv_mesh, color=shape_color)
 
     target = shape.centroid
 
@@ -160,16 +152,16 @@ def render_shape(shape: trimesh.Trimesh, shape_name: str, c: str = config.BASE_C
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             plotter.screenshot(file_path)
 
-            data_mesh = extract_object_mesh(shape, shape_name, 0, "ALONE", c, background, texture, current_mesh_id)
-            data_render = extract_object_render(0, file_name, plotter, current_mesh_id, "ALONE", None)
+            data_mesh = extract_object_mesh(shape, shape_name, 0, Concept.ALONE, shape_color, background, texture, current_mesh_id)
+            data_render = extract_object_render(0, file_name, plotter, current_mesh_id, Concept.ALONE, None)
             if render_index == 0:
-                save_meta_data(data_mesh, True)
-            save_meta_data(data_render, False)
+                save_mesh_meta_data(data_mesh)
+            save_render_meta_data(data_render)
 
     extract_object_mesh.counter += 1
     plotter.close()
 
-def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[str], colors: list[str], concept: str, index: int = 0):
+def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[Shape], colors: list[Color|None], concept: Concept, index: int = 0):
     if config.TEST_MODE:
         plotter = pv.Plotter(window_size=[config.IMG_W, config.IMG_H])
     else:
@@ -185,13 +177,13 @@ def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[str],
             if texture_path:
                 texture = texture_path.removeprefix(config.TEXTURE_PATH + "/")
                 textures.append(texture)
-                colors[shape_id] = ""
+                colors[shape_id] = None
                 texture_img = pv.read_texture(texture_path)
-                if shape_names[shape_id].lower() == "sphere":
+                if shape_names[shape_id] == Shape.SPHERE:
                     pv_mesh = pv_mesh.texture_map_to_sphere()
-                elif shape_names[shape_id].lower() == "cube":
+                elif shape_names[shape_id] == Shape.CUBE:
                     pv_mesh = pv.Cube(
-                        center=shapes[shape_id].centroid,
+                        center=np.asarray(shapes[shape_id].centroid),
                         x_length=shapes[shape_id].extents[0],
                         y_length=shapes[shape_id].extents[1],
                         z_length=shapes[shape_id].extents[2],
@@ -209,7 +201,7 @@ def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[str],
             actor = plotter.add_mesh(pv_mesh, color=colors[shape_id])
         actors.append(actor)
 
-    combined_mesh = trimesh.util.concatenate(*shapes)
+    combined_mesh = cast(trimesh.Trimesh, trimesh.util.concatenate(*shapes))
     target = combined_mesh.centroid
 
     if config.RENDER_BACKGROUND:
@@ -242,7 +234,7 @@ def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[str],
                 concept_2d, dist_2d = classifier.classify_2d(actors, plotter)
                 data_render = extract_object_render(shape_id, file_name, plotter, current_mesh_id, concept_2d, dist_2d)
                 if render_index == 0:
-                    save_meta_data(data_mesh, True)
-                save_meta_data(data_render, False)
+                    save_mesh_meta_data(data_mesh)
+                save_render_meta_data(data_render)
     extract_object_mesh.counter += 1
     plotter.close()

@@ -1,11 +1,12 @@
 import random
 import shutil
+import os
 from typing import Sequence
 import config
 from core import mesh, scene, validator
-import os
+from core.labels import Concept, Shape, Color
 
-def generate_group(shapes: Sequence[str], conc: str):
+def generate_group(shapes: Sequence[Shape], conc: Concept):
     for i in range(config.SAMPLE_COUNT):
         valid = False
         validation_count = 0
@@ -23,32 +24,36 @@ def generate_group(shapes: Sequence[str], conc: str):
         else:
             print(f"Unable to generate group with concept {conc}")
 
-def generate_single(shape: str):
+def generate_single(shape: Shape):
     for i in range(config.SAMPLE_COUNT):
         mesh_single = mesh.get_mesh(shape)
-        scene.render_shape(mesh_single, shape, random.choice(config.COLORS), i)
+        scene.render_shape(mesh_single, shape, random.choice(COLORS), i)
 
-def gen_color_list(shapes_count: int) -> Sequence[str]:
+def gen_color_list(shapes_count: int) -> list[Color]:
     gen_colors = []
-    if shapes_count <= len(config.COLORS):
+    if shapes_count <= len(COLORS):
         for i in range(shapes_count):
-            c = random.choice(config.COLORS)
+            c = random.choice(COLORS)
             while c in gen_colors:
-                c = random.choice(config.COLORS)
+                c = random.choice(COLORS)
             gen_colors.append(c)
     else:
         for i in range(shapes_count):
-            gen_colors.append(random.choice(config.COLORS))
+            gen_colors.append(random.choice(COLORS))
     return gen_colors
 
 
 if os.path.exists(config.OUTPUT_PATH):
     shutil.rmtree(config.OUTPUT_PATH)
 random.seed(config.SEED)
-for concept in config.CONCEPTS:
-    for shape1_IDX in range(len(config.SHAPES)):
-        if concept != "ALONE":
-            for shape2_IDX in range(shape1_IDX, len(config.SHAPES)):
-                generate_group([config.SHAPES[shape1_IDX], config.SHAPES[shape2_IDX]], concept)
+print("Generating shapes...")
+CONCEPTS = list(Concept)
+SHAPES = list(Shape)
+COLORS = list(Color)
+for concept in CONCEPTS:
+    for shape1_IDX in range(len(SHAPES)):
+        if concept != Concept.ALONE:
+            for shape2_IDX in range(shape1_IDX, len(SHAPES)):
+                generate_group([SHAPES[shape1_IDX], SHAPES[shape2_IDX]], concept)
         else:
-            generate_single(config.SHAPES[shape1_IDX])
+            generate_single(SHAPES[shape1_IDX])

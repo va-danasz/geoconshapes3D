@@ -17,15 +17,6 @@ TEXTURE_PATH = "textures"
 CSV_PATH_MESH = f"{OUTPUT_PATH}/meta_data_mesh.csv"
 CSV_PATH_RENDER = f"{OUTPUT_PATH}/meta_data_render.csv"
 
-# Dataset Labeling & Category Options
-CONCEPTS = ["ALONE", "FAR", "CLOSE", "OVERLAP"]
-SHAPES = ["CONE", "CUBE", "SPHERE"]
-COLORS = ["red", "green", "blue"]
-
-# Color Assignment Configurations
-BASE_COLOR_SINGLE = COLORS[0]
-BASE_COLORS_GROUP = [COLORS[1], COLORS[2]]
-
 # 3D Scene & Camera Configurations
 HORIZONTAL_ANGLE_RANGE = (0.0, 360.0)
 ELEVATION_ANGLE_RANGE = (15.0, 60.0)
@@ -49,5 +40,5 @@ CONE_HEIGHT_RANGE = (8.0, 12.0)
 # 3D Relation thresholds (world units)
 CLOSE_THRESHOLD = (2.0, 6.0)
 FAR_THRESHOLD = (10.0, 30.0)
-# 2D Projection threshold (normalized, proportional  )
+# 2D Projection threshold (normalized)
 THRESHOLD_2D_CLOSE_FAR = 0.1

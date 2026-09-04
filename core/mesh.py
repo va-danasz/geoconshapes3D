@@ -1,6 +1,7 @@
 import random
 import trimesh
 import config
+from core.labels import Shape
 
 def generate_cube() -> trimesh.Trimesh:
     cube_mesh = trimesh.creation.box(extents=random_cube_size())
@@ -39,13 +40,13 @@ def random_cube_size() -> tuple[float, float, float]:
     return size, size, size
 
 
-def get_mesh(shape: str) -> trimesh.Trimesh:
+def get_mesh(shape: Shape) -> trimesh.Trimesh:
     match shape:
-        case "CUBE":
+        case Shape.CUBE:
             mesh_generate = generate_cube()
-        case "SPHERE":
+        case Shape.SPHERE:
             mesh_generate = generate_sphere()
-        case "CONE":
+        case Shape.CONE:
             mesh_generate = generate_cone()
         case _:
             raise ValueError(f"Unknown shape: {shape}")

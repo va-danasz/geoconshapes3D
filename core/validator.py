@@ -1,6 +1,7 @@
 import trimesh
 from typing import Sequence
 import config
+from core.labels import Concept
 
 def get_min_distance(mesh1: trimesh.Trimesh, mesh2: trimesh.Trimesh) -> float:
     manager = trimesh.collision.CollisionManager()
@@ -8,11 +9,14 @@ def get_min_distance(mesh1: trimesh.Trimesh, mesh2: trimesh.Trimesh) -> float:
     min_distance = manager.min_distance_single(mesh2)
     return min_distance
 
+from typing import cast
+
 def get_overlap_depth(mesh1: trimesh.Trimesh, mesh2: trimesh.Trimesh) -> float:
     manager = trimesh.collision.CollisionManager()
     manager.add_object('m1', mesh1)
 
-    is_colliding, contacts = manager.in_collision_single(mesh2, return_names=False, return_data=True)
+    result: object = manager.in_collision_single(mesh2, return_names=False, return_data=True)
+    is_colliding, contacts = cast(tuple[bool, list], result)
 
     if not is_colliding:
         return 0.0
@@ -42,14 +46,14 @@ def validate_far(current_meshes: Sequence[trimesh.Trimesh]) -> bool:
     return all(config.FAR_THRESHOLD[0] <= d <= config.FAR_THRESHOLD[1] for d in distances)
 
 
-def validate(current_meshes: Sequence[trimesh.Trimesh], concept: str) -> bool:
+def validate(current_meshes: Sequence[trimesh.Trimesh], concept: Concept) -> bool:
     valid = False
     match concept:
-        case "OVERLAP":
+        case Concept.OVERLAP:
             valid = validate_overlap(current_meshes)
-        case "CLOSE":
+        case Concept.CLOSE:
             valid = validate_close(current_meshes)
-        case "FAR":
+        case Concept.FAR:
             valid = validate_far(current_meshes)
         case _:
             valid = False
