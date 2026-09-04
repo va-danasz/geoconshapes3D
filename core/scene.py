@@ -7,6 +7,7 @@ import trimesh
 import trimesh.visual.texture
 import os
 import csv
+import core.classifier as classifier
 
 header_names_mesh = [
         "id", "concept", "img_width", "img_height", "object_id", "object_name",
@@ -17,7 +18,7 @@ header_names_mesh = [
 
 header_names_render = [
         "mesh_id", "image_name", "object_id", "cam_pos_x", "cam_pos_y", "cam_pos_z",
-        "view_angle", "target_x", "target_y", "target_z", "concept_2d"
+        "view_angle", "target_x", "target_y", "target_z", "concept_2d", "dist_norm"
 ]
 
 def get_random_file(folder_path: str) -> str | None:
@@ -69,13 +70,13 @@ def extract_object_mesh(shape: trimesh.Trimesh, shape_name: str, shape_id: int, 
         "color": color, "texture_name": texture_path, "background_name": bg_path
     }
 
-def extract_object_render(shape_id: int, file_name: str, plotter: pv.Plotter, mesh_id: int) -> dict:
+def extract_object_render(shape_id: int, file_name: str, plotter: pv.Plotter, mesh_id: int, concept_2d: str, dist_norm: float|None) -> dict:
     return {
         "mesh_id": f"{mesh_id:03d}", "image_name": file_name, "object_id": shape_id,
         "cam_pos_x": plotter.camera.position[0], "cam_pos_y": plotter.camera.position[1], "cam_pos_z": plotter.camera.position[2],
         "view_angle": config.VIEW_ANGLE,
         "target_x": plotter.camera.focal_point[0], "target_y": plotter.camera.focal_point[1], "target_z": plotter.camera.focal_point[2],
-        "concept_2d": None
+        "concept_2d": concept_2d, "dist_norm": dist_norm
     }
 extract_object_mesh.counter = 0
 
@@ -160,7 +161,7 @@ def render_shape(shape: trimesh.Trimesh, shape_name: str, c: str = config.BASE_C
             plotter.screenshot(file_path)
 
             data_mesh = extract_object_mesh(shape, shape_name, 0, "ALONE", c, background, texture, current_mesh_id)
-            data_render = extract_object_render(0, file_name, plotter, current_mesh_id)
+            data_render = extract_object_render(0, file_name, plotter, current_mesh_id, "ALONE", None)
             if render_index == 0:
                 save_meta_data(data_mesh, True)
             save_meta_data(data_render, False)
@@ -175,7 +176,8 @@ def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[str],
         plotter = pv.Plotter(window_size=[config.IMG_W, config.IMG_H], off_screen=True)
 
     textures = []
-    background, texture = "", ""
+    actors = []
+    background, texture, actor = "", "", ""
     for shape_id in range(len(shapes)):
         pv_mesh = pv.wrap(shapes[shape_id])
         if config.RENDER_TEXTURE:
@@ -201,10 +203,11 @@ def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[str],
                         pv_mesh.active_texture_coordinates = (t_coords - t_min) / (t_max - t_min)
                 else:
                     pv_mesh = pv_mesh.texture_map_to_plane()
-                plotter.add_mesh(pv_mesh, texture=texture_img)
+                actor = plotter.add_mesh(pv_mesh, texture=texture_img)
         if not config.RENDER_TEXTURE or texture == "":
             textures.append("")
-            plotter.add_mesh(pv_mesh, color=colors[shape_id])
+            actor = plotter.add_mesh(pv_mesh, color=colors[shape_id])
+        actors.append(actor)
 
     combined_mesh = trimesh.util.concatenate(*shapes)
     target = combined_mesh.centroid
@@ -236,7 +239,8 @@ def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[str],
             for shape_id in range(len(shapes)):
                 data_mesh = extract_object_mesh(shapes[shape_id], shape_names[shape_id], shape_id, concept,
                                                 colors[shape_id], background, textures[shape_id], current_mesh_id)
-                data_render = extract_object_render(shape_id, file_name, plotter, current_mesh_id)
+                concept_2d, dist_2d = classifier.classify_2d(actors, plotter)
+                data_render = extract_object_render(shape_id, file_name, plotter, current_mesh_id, concept_2d, dist_2d)
                 if render_index == 0:
                     save_meta_data(data_mesh, True)
                 save_meta_data(data_render, False)

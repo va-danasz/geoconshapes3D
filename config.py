@@ -46,5 +46,8 @@ CONE_RADIUS_RANGE = (4.0, 8.0)
 CONE_HEIGHT_RANGE = (8.0, 12.0)
 
 # Spatial Relationship Thresholds
+# 3D Relation thresholds (world units)
 CLOSE_THRESHOLD = (2.0, 6.0)
 FAR_THRESHOLD = (10.0, 30.0)
+# 2D Projection threshold (normalized, proportional  )
+THRESHOLD_2D_CLOSE_FAR = 0.1
