@@ -7,6 +7,8 @@ import os
 import csv
 import numpy as np
 from typing import Sequence, cast
+from pyvista import Actor
+
 import config
 import core.classifier as classifier
 from core.labels import Shape, Concept, Color
@@ -14,6 +16,8 @@ from core.schema import MeshMetaData, RenderMetaData
 
 header_names_mesh = list(MeshMetaData.__annotations__.keys())
 header_names_render = list(RenderMetaData.__annotations__.keys())
+directions = [(1, 0, 0, "front"), (-1, 0, 0, "back"), (0, 1, 0, "right"),
+                      (0, -1, 0, "left"), (0, 0, 1, "top"), (0, 0, -1, "bottom")]
 
 def get_random_file(folder_path: str) -> str | None:
     valid_extensions = (".png", ".jpg", ".jpeg")
@@ -63,17 +67,17 @@ def extract_object_mesh(shape: trimesh.Trimesh, shape_name: Shape, shape_id: int
         "color": color, "texture_name": texture_path, "background_name": bg_path
     }
 
-def extract_object_render(shape_id: int, file_name: str, plotter: pv.Plotter, mesh_id: int, concept_2d: Concept, dist_norm: float|None) -> RenderMetaData:
+def extract_object_render(file_name: str, plotter: pv.Plotter, mesh_id: int, concept_2d: Concept, dist_norm: float|None) -> RenderMetaData:
     return {
-        "mesh_id": f"{mesh_id:03d}", "image_name": file_name, "object_id": shape_id,
-        "cam_pos_x": plotter.camera.position[0], "cam_pos_y": plotter.camera.position[1], "cam_pos_z": plotter.camera.position[2],
-        "view_angle": config.VIEW_ANGLE,
+        "mesh_id": f"{mesh_id:03d}", "image_name": file_name, "cam_pos_x": plotter.camera.position[0],
+        "cam_pos_y": plotter.camera.position[1], "cam_pos_z": plotter.camera.position[2], "view_angle": config.VIEW_ANGLE,
         "target_x": plotter.camera.focal_point[0], "target_y": plotter.camera.focal_point[1], "target_z": plotter.camera.focal_point[2],
         "concept_2d": concept_2d, "dist_norm": dist_norm
     }
 extract_object_mesh.counter = 0
 
 def save_render_meta_data(data: RenderMetaData) -> None:
+    os.makedirs(os.path.dirname(config.CSV_PATH_RENDER), exist_ok=True)
     file_exists = os.path.exists(config.CSV_PATH_RENDER)
     with open(config.CSV_PATH_RENDER, mode="a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter[str](f, fieldnames=header_names_render)
@@ -83,6 +87,7 @@ def save_render_meta_data(data: RenderMetaData) -> None:
     f.close()
 
 def save_mesh_meta_data(data: MeshMetaData) -> None:
+    os.makedirs(os.path.dirname(config.CSV_PATH_MESH), exist_ok=True)
     file_exists = os.path.exists(config.CSV_PATH_MESH)
     with open(config.CSV_PATH_MESH, mode="a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter[str](f, fieldnames=header_names_mesh)
@@ -91,12 +96,31 @@ def save_mesh_meta_data(data: MeshMetaData) -> None:
         writer.writerow(dict(data))
     f.close()
 
+def save_img(plotter: pv.Plotter, shape_names: Shape|str, concept: Concept, current_mesh_id: int, index: int,
+             render_index: int|str, actors: list[Actor]):
+    mesh_name = f"{concept.lower()}_{shape_names.lower()}_{index}"
+    file_name = f"{mesh_name}_{render_index}.png"
+    file_path = os.path.join(config.OUTPUT_PATH, concept.lower(), mesh_name, file_name)
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    plotter.screenshot(file_path)
+
+    concept_2d, dist_2d = classifier.classify_2d(actors, plotter)
+    data_render = extract_object_render(file_name, plotter, current_mesh_id, concept_2d, dist_2d)
+    save_render_meta_data(data_render)
+
+def save_mesh(shape: trimesh.Trimesh, shape_name: Shape, shape_id: int, concept: Concept,
+             shape_color: Color|None, background: str|None, texture: str|None, current_mesh_id: int):
+    data_mesh = extract_object_mesh(shape, shape_name, shape_id, concept, shape_color, background, texture, current_mesh_id)
+    save_mesh_meta_data(data_mesh)
+
 def render_shape(shape: trimesh.Trimesh, shape_name: Shape, shape_color: Color|None, index: int = 0):
     if config.TEST_MODE:
         plotter = pv.Plotter(window_size=[config.IMG_W, config.IMG_H])
     else:
         plotter = pv.Plotter(window_size=[config.IMG_W, config.IMG_H], off_screen=True)
 
+    actors = []
+    actor = None
     background, texture, pv_mesh = "", "", ""
     if config.RENDER_TEXTURE:
         texture_path = get_random_file(config.TEXTURE_PATH)
@@ -121,11 +145,11 @@ def render_shape(shape: trimesh.Trimesh, shape_name: Shape, shape_color: Color|N
                     pv_mesh.active_texture_coordinates = (t_coords - t_min) / (t_max - t_min)
             else:
                 pv_mesh = pv.wrap(shape).texture_map_to_plane()
-            plotter.add_mesh(pv_mesh, texture=texture_img)
+            actor = plotter.add_mesh(pv_mesh, texture=texture_img)
     if not config.RENDER_TEXTURE or texture == "":
         pv_mesh = pv.wrap(shape)
-        plotter.add_mesh(pv_mesh, color=shape_color)
-
+        actor = plotter.add_mesh(pv_mesh, color=shape_color)
+    actors.append(actor)
     target = shape.centroid
 
     if config.RENDER_BACKGROUND:
@@ -147,16 +171,20 @@ def render_shape(shape: trimesh.Trimesh, shape_name: Shape, shape_color: Color|N
             plotter.add_axes()
             plotter.show()
         else:
-            file_name = f"alone_{shape_name.lower()}_{index}_{render_index}.png"
-            file_path = os.path.join(config.OUTPUT_PATH, "alone", file_name)
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            plotter.screenshot(file_path)
-
-            data_mesh = extract_object_mesh(shape, shape_name, 0, Concept.ALONE, shape_color, background, texture, current_mesh_id)
-            data_render = extract_object_render(0, file_name, plotter, current_mesh_id, Concept.ALONE, None)
             if render_index == 0:
-                save_mesh_meta_data(data_mesh)
-            save_render_meta_data(data_render)
+                save_mesh(shape, shape_name, 0, Concept.ALONE, shape_color, background, texture, current_mesh_id)
+            save_img(plotter, shape_name, Concept.ALONE, current_mesh_id, index, render_index, actors)
+    if config.ENABLE_DIRECTIONS:
+        for dirX, dirY, dirZ, label in directions:
+            cam_pos = [target[0] + dirX, target[1] + dirY, target[2] + dirZ]
+            plotter.camera_position = [cam_pos, target, (0.0, 1.0, 0.0) if label in ("top", "bottom") else (0.0, 0.0, 1.0)]
+            plotter.camera.view_angle = config.VIEW_ANGLE
+            plotter.reset_camera(render=config.TEST_MODE)
+            if config.TEST_MODE:
+                plotter.add_axes()
+                plotter.show()
+            else:
+                save_img(plotter, shape_name, Concept.ALONE, current_mesh_id, index, label, actors)
 
     extract_object_mesh.counter += 1
     plotter.close()
@@ -211,6 +239,7 @@ def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[Shape
             plotter.add_background_image(bg_path)
 
     current_mesh_id = extract_object_mesh.counter
+    shapes_concat = "_".join([s.lower() for s in shape_names])
     for render_index in range(config.RENDER_COUNT):
         dx, dy, dz = camera_angle()
         cam_pos = [target[0] + dx, target[1] + dy, target[2] + dz]
@@ -223,18 +252,21 @@ def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[Shape
             plotter.add_axes()
             plotter.show()
         else:
-            shapes_concat = "_".join([s.lower() for s in shape_names])
-            file_name = f"{concept.lower()}_{shapes_concat}_{index}_{render_index}.png"
-            file_path = os.path.join(config.OUTPUT_PATH, concept.lower(), file_name)
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            plotter.screenshot(file_path)
-            for shape_id in range(len(shapes)):
-                data_mesh = extract_object_mesh(shapes[shape_id], shape_names[shape_id], shape_id, concept,
-                                                colors[shape_id], background, textures[shape_id], current_mesh_id)
-                concept_2d, dist_2d = classifier.classify_2d(actors, plotter)
-                data_render = extract_object_render(shape_id, file_name, plotter, current_mesh_id, concept_2d, dist_2d)
-                if render_index == 0:
-                    save_mesh_meta_data(data_mesh)
-                save_render_meta_data(data_render)
+            if render_index == 0:
+                for shape_id in range(len(shapes)):
+                    save_mesh(shapes[shape_id], shape_names[shape_id], shape_id, concept,
+                              colors[shape_id], background, textures[shape_id], current_mesh_id)
+            save_img(plotter, shapes_concat, concept, current_mesh_id, index, render_index, actors)
+    if config.ENABLE_DIRECTIONS:
+        for dirX, dirY, dirZ, label in directions:
+            cam_pos = [target[0] + dirX, target[1] + dirY, target[2] + dirZ]
+            plotter.camera_position = [cam_pos, target, (0.0, 1.0, 0.0) if label in ("top", "bottom") else (0.0, 0.0, 1.0)]
+            plotter.camera.view_angle = config.VIEW_ANGLE
+            plotter.reset_camera(render=config.TEST_MODE)
+            if config.TEST_MODE:
+                plotter.add_axes()
+                plotter.show()
+            else:
+                save_img(plotter, shapes_concat, concept, current_mesh_id, index, label, actors)
     extract_object_mesh.counter += 1
     plotter.close()

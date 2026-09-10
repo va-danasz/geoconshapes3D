@@ -25,7 +25,6 @@ class MeshMetaData(TypedDict):
 class RenderMetaData(TypedDict):
     mesh_id: str
     image_name: str
-    object_id: int
     cam_pos_x: float
     cam_pos_y: float
     cam_pos_z: float

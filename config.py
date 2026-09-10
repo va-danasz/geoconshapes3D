@@ -42,3 +42,6 @@ CLOSE_THRESHOLD = (2.0, 6.0)
 FAR_THRESHOLD = (10.0, 30.0)
 # 2D Projection threshold (normalized)
 THRESHOLD_2D_CLOSE_FAR = 0.1
+
+# Plotting for world axis directions
+ENABLE_DIRECTIONS = True
