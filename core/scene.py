@@ -16,8 +16,9 @@ from core.schema import MeshMetaData, RenderMetaData
 
 header_names_mesh = list(MeshMetaData.__annotations__.keys())
 header_names_render = list(RenderMetaData.__annotations__.keys())
-directions = [(1, 0, 0, "front"), (-1, 0, 0, "back"), (0, 1, 0, "right"),
-                      (0, -1, 0, "left"), (0, 0, 1, "top"), (0, 0, -1, "bottom")]
+directions = [(1, 0, 0, "front"), (-1, 0, 0, "back"), (0, 1, 0, "right"), (0, -1, 0, "left"), (0, 0, 1, "top"), (0, 0, -1, "bottom")]
+world_directions = [(x, y, z, label) for (x, y, z, label) in directions if label in config.INCLUDE_WORLD_DIRECTIONS]
+local_directions = [(x, y, z, label) for (x, y, z, label) in directions if label in config.INCLUDE_RELATIVE_DIRECTIONS]
 
 def get_random_file(folder_path: str) -> str | None:
     valid_extensions = (".png", ".jpg", ".jpeg")
@@ -38,6 +39,32 @@ def camera_angle() -> tuple[float, float, float]:
     dy = math.cos(elevation) * math.sin(horizontal)
     dz = math.sin(elevation)
     return dx, dy, dz
+
+def relative_directions(centroid1: np.ndarray, centroid2: np.ndarray) -> list[tuple[float, float, float, str]]:
+    axis = np.asarray(centroid2) - np.asarray(centroid1)
+    axis = axis / np.linalg.norm(axis)
+    helper = np.array([0.0, 0.0, 1.0])
+    if abs(np.dot(axis, helper)) > 0.99:
+        helper = np.array([0.0, 1.0, 0.0])
+    rot0 = np.cross(axis, helper)
+    rot0 /= np.linalg.norm(rot0)
+    rot90 = np.cross(axis, rot0)
+    ax, ay, az = float(axis[0]), float(axis[1]), float(axis[2])
+    r0x, r0y, r0z = float(rot0[0]), float(rot0[1]), float(rot0[2])
+    r9x, r9y, r9z = float(rot90[0]), float(rot90[1]), float(rot90[2])
+
+    raw = [
+        (ax, ay, az, "rel_front"), (-ax, -ay, -az, "rel_back"),
+        (r0x, r0y, r0z, "rel_rot0"), (-r0x, -r0y, -r0z, "rel_rot0_neg"),
+        (r9x, r9y, r9z, "rel_rot90"), (-r9x, -r9y, -r9z, "rel_rot90_neg"),
+    ]
+    return [d for d in raw if d[3] in config.INCLUDE_RELATIVE_DIRECTIONS]
+
+def up_vector_for(direction: np.ndarray) -> tuple[float, float, float]:
+    world_up = np.array([0.0, 0.0, 1.0])
+    if abs(np.dot(direction, world_up)) > 0.99:
+        return 0.0, 1.0, 0.0
+    return 0.0, 0.0, 1.0
 
 def extract_object_mesh(shape: trimesh.Trimesh, shape_name: Shape, shape_id: int, concept: Concept, color: Color|None,
                         bg_path: str|None, texture_path: str|None, mesh_id: int) -> MeshMetaData:
@@ -174,8 +201,8 @@ def render_shape(shape: trimesh.Trimesh, shape_name: Shape, shape_color: Color|N
             if render_index == 0:
                 save_mesh(shape, shape_name, 0, Concept.ALONE, shape_color, background, texture, current_mesh_id)
             save_img(plotter, shape_name, Concept.ALONE, current_mesh_id, index, render_index, actors)
-    if config.ENABLE_DIRECTIONS:
-        for dirX, dirY, dirZ, label in directions:
+    if config.ENABLE_WORLD_DIRECTIONS:
+        for dirX, dirY, dirZ, label in world_directions:
             cam_pos = [target[0] + dirX, target[1] + dirY, target[2] + dirZ]
             plotter.camera_position = [cam_pos, target, (0.0, 1.0, 0.0) if label in ("top", "bottom") else (0.0, 0.0, 1.0)]
             plotter.camera.view_angle = config.VIEW_ANGLE
@@ -257,10 +284,25 @@ def render_shapes(shapes: Sequence[trimesh.Trimesh], shape_names: Sequence[Shape
                     save_mesh(shapes[shape_id], shape_names[shape_id], shape_id, concept,
                               colors[shape_id], background, textures[shape_id], current_mesh_id)
             save_img(plotter, shapes_concat, concept, current_mesh_id, index, render_index, actors)
-    if config.ENABLE_DIRECTIONS:
-        for dirX, dirY, dirZ, label in directions:
+    if config.ENABLE_WORLD_DIRECTIONS:
+        for dirX, dirY, dirZ, label in world_directions:
             cam_pos = [target[0] + dirX, target[1] + dirY, target[2] + dirZ]
             plotter.camera_position = [cam_pos, target, (0.0, 1.0, 0.0) if label in ("top", "bottom") else (0.0, 0.0, 1.0)]
+            plotter.camera.view_angle = config.VIEW_ANGLE
+            plotter.reset_camera(render=config.TEST_MODE)
+            if config.TEST_MODE:
+                plotter.add_axes()
+                plotter.show()
+            else:
+                save_img(plotter, shapes_concat, concept, current_mesh_id, index, label, actors)
+    if config.ENABLE_RELATIVE_DIRECTIONS:
+        rel_dirs = relative_directions(np.asarray(shapes[0].centroid), np.asarray(shapes[1].centroid))
+        for dirX, dirY, dirZ, label in rel_dirs:
+            cam_pos = [target[0] + dirX, target[1] + dirY, target[2] + dirZ]
+            up = up_vector_for(np.array([dirX, dirY, dirZ]))
+            plotter.camera.up = up
+            plotter.camera.position = cam_pos
+            plotter.camera.focal_point = target
             plotter.camera.view_angle = config.VIEW_ANGLE
             plotter.reset_camera(render=config.TEST_MODE)
             if config.TEST_MODE:

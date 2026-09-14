@@ -47,9 +47,9 @@ def gen_color_list(shapes_count: int) -> list[Color]:
     return gen_colors
 
 def print_progress(done: int, total: int):
-    BAR_WIDTH = 50
-    filled = round(done / total * BAR_WIDTH)
-    bar = "■" * filled + "□" * (BAR_WIDTH - filled)
+    bar_width = 50
+    filled = round(done / total * bar_width)
+    bar = "■" * filled + "□" * (bar_width - filled)
     percent = round(done / total * 100)
     print(f"\r{bar} {percent}%", end="", flush=True)
 
@@ -66,7 +66,17 @@ SHAPES = list(Shape)
 COLORS = list(Color)
 
 print("Generating shapes...")
-print(f"Total image count: {21 * config.SAMPLE_COUNT*(config.RENDER_COUNT+(6 if config.ENABLE_DIRECTIONS else 0))}")
+valid_directions_world = ["left", "right", "top", "bottom", "front", "back"]
+valid_directions_relative = ["rel_front", "rel_back", "rel_rot0", "rel_rot0_neg", "rel_rot90", "rel_rot90_neg"]
+world_directions_count, relative_directions_count = 0, 0
+if config.ENABLE_WORLD_DIRECTIONS:
+    world_directions = [direction for direction in config.INCLUDE_WORLD_DIRECTIONS if direction in valid_directions_world]
+    world_directions_count = len(world_directions)
+if config.ENABLE_RELATIVE_DIRECTIONS:
+    relative_directions = [direction for direction in config.INCLUDE_RELATIVE_DIRECTIONS if direction in valid_directions_relative]
+    relative_directions_count = len(relative_directions)
+print(f"Total image count: {21 * config.SAMPLE_COUNT * (config.RENDER_COUNT + world_directions_count) +
+                            18 * config.SAMPLE_COUNT * relative_directions_count}")
 total_steps = (len(SHAPES) + ((len(CONCEPTS)-1) * (len(SHAPES)*(len(SHAPES)-1)))) * config.SAMPLE_COUNT
 done_steps = 0
 
